@@ -3,19 +3,21 @@ from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
 from auth import authenticate_user, create_access_token, verify_token
 from sqlalchemy.orm import Session
-from database import Base, engine, get_db
+from database import engine, get_db, Base
 from models import User
 from schemas import UserCreate, UserResponse
 import bcrypt
 
+
 app = FastAPI()
 
 @app.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     username = form_data.username
     password = form_data.password
 
-    if authenticate_user(username, password):
+    user = authenticate_user(db, username, password)  # db parametresi eklendi
+    if user:
         access_token_expires = timedelta(minutes=60)
         access_token = create_access_token(
             data={"sub": username}, expires_delta=access_token_expires
@@ -25,12 +27,13 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
         raise HTTPException(status_code=401, detail="Kullanıcı adı veya şifre hatalı")
 
 
+
 # 🔒 Giriş yapılmadan erişilemeyen endpoint
 @app.get("/products")
 def get_products(username: str = Depends(verify_token)):
     return {"message": f"Hoş geldin {username}!", "products": ["Kalem", "Defter", "Silgi"]}
 
-# 🧱 Veritabanını oluştur
+# 🧱 Veritabanını oluştur (tek bir kez)
 Base.metadata.create_all(bind=engine)
 
 @app.post("/users", response_model=UserResponse)

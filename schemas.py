@@ -1,15 +1,18 @@
 from pydantic import BaseModel
 
+
 class UserBase(BaseModel):
     username: str
     role: str = "cashier"
 
+
 class UserCreate(UserBase):
     password: str
+
 
 class UserResponse(UserBase):
     id: int
     is_active: bool
 
-    class Config:
-        orm_mode = True
+    # Pydantic v2: use from_attributes instead of orm_mode
+    model_config = {"from_attributes": True}
