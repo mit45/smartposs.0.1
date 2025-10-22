@@ -1,21 +1,36 @@
-import json
 from datetime import datetime, timedelta
-from jose import jwt
+from typing import Optional
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
 
-SECRET_KEY = "super_secret_key_123"  # Gerçek sistemde .env dosyasına yazılacak
+# Sabitler
+SECRET_KEY = "supersecretkey"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
-def authenticate_user(username, password):
-    with open("users.json", "r", encoding="utf-8") as f:
-        users = json.load(f)
+# Sahte kullanıcı listesi (veritabanı yerine)
+users = [
+    {"username": "admin", "password": "1234"},
+    {"username": "umit", "password": "abcd"}
+]
 
+# Kullanıcıyı bulma
+def get_user_by_username(username: str):
     for user in users:
-        if user["username"] == username and user["password"] == password:
-            return True
+        if user["username"] == username:
+            return user
+    return None
+
+# Kullanıcıyı doğrulama
+def authenticate_user(username: str, password: str):
+    user = get_user_by_username(username)
+    if user and user["password"] == password:
+        return True
     return False
 
-def create_access_token(data: dict, expires_delta: timedelta = None):
+# Token oluşturma
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -24,3 +39,22 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+# Token kontrolü
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+def verify_token(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: Optional[str] = payload.get("sub")
+        if username is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Geçersiz token"
+            )
+        return username
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token doğrulanamadı"
+        )
